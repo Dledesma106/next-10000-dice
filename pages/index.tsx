@@ -1,14 +1,163 @@
 import Head from 'next/head'
-import {
-  Container,
-  Main,
-  Title,
-  Description,
-  CodeTag,
-} from '../components/sharedstyles'
-import Cards from '../components/cards'
+import { Container, Main} from '../components/sharedstyles'
+import Card from '../components/Card/Card'
+import PlayerList from '../components/PlayerList/PlayerList'
+import {useState} from 'react'
+import {nanoid, random} from 'nanoid'
+import * as SC from '../components/style'
+import DiceView from '../components/DiceView'
+import { calculateScore, canHoldDice } from '../components/utils'
+import { getRandomDie, sameDieCount5Dice, initialDice,  } from '../components/setsOfDice'
+
+
 
 export default function Home() {
+  const [playerList, setPlayerList] = useState([{
+    id: nanoid(),
+    name: "Nuevo jugador",
+    score: 0,
+    isTheirTurn: true,
+    isRenaming: false
+  }])
+  
+  const [dice, setDice] = useState(sameDieCount5Dice)
+
+  
+
+  const setPlayerTurn = (prevPlayerList) => {
+    let newPlayerList = []
+    for (let i = 0; i < prevPlayerList.length; i++) {
+      if(prevPlayerList[i].isTheirTurn){
+        if ((i+1)<prevPlayerList.length) {
+          newPlayerList[i] = {...prevPlayerList[i], isTheirTurn:false}
+          newPlayerList[i+1] = {...prevPlayerList[i+1], isTheirTurn:true}
+          i++
+        }else{
+          newPlayerList[i] = {...prevPlayerList[i], isTheirTurn:false}
+          newPlayerList[0] = {...prevPlayerList[0], isTheirTurn:true}
+        }
+      }else{
+        newPlayerList[i] = prevPlayerList[i]
+      }
+    }
+    return newPlayerList
+  }
+
+  const passTurn = () => {
+    setDice(dice.map(()=>getRandomDie()))
+    setPlayerList(setPlayerTurn(playerList))
+  }
+
+  const savePoints = (score) =>{
+    let newPlayerList = []
+    
+    for (let i = 0; i < playerList.length; i++) {
+      if(playerList[i].isTheirTurn){
+        if (playerList[i].score >= 750) {
+          console.log('tiene mas de 750, puede guardar mas puntos')
+          newPlayerList[i] = {...playerList[i], score: playerList[i].score+score}
+        }else if(score >= 750){
+          console.log('hizo 750 puntos o mas, puede guardar estos puntos')
+          newPlayerList[i] = {...playerList[i], score: playerList[i].score+score}
+        }else if(score < 750){
+          console.log('el jugador tiene menos de 750 puntos y no hizo 750 puntos, no puede guardar puntos')
+          newPlayerList[i] = playerList[i]
+        }
+      }else{
+        newPlayerList[i] = playerList[i]      
+      }
+    }
+    setDice(prevDice => prevDice.map(getRandomDie))
+    newPlayerList = setPlayerTurn(newPlayerList)
+    setPlayerList(newPlayerList)  
+
+  }
+
+
+  const areAllSetAsideOrHeld = () => {
+    const diceNotSetAsideOrHeld = dice.filter(die => !die.isSetAside && !die.isHeld)
+    console.log((diceNotSetAsideOrHeld.length))
+    return diceNotSetAsideOrHeld.length==0
+  }
+
+  const rollDice = () =>{
+    if(areAllSetAsideOrHeld()){
+      setDice(prevDice => prevDice.map(getRandomDie))
+    }else{
+      setDice(
+        prevDice => {
+          const newDice = prevDice.map(
+          function(die){
+            if(die.isSetAside){
+              return die
+            }
+            else if(die.isHeld){
+              return {...die, isHeld: false, isSetAside:true}
+            }
+            return getRandomDie()
+          })
+        return newDice
+        } 
+        )
+      
+    }
+    
+  }
+
+  const holdDice = (id) => {
+    
+    if(canHoldDice(id, dice)){
+      setDice(
+        prevDice => {
+          return prevDice.map(
+            die => {
+              if(die.id === id && !die.isSetAside){
+                return {...die, isHeld: !die.isHeld}
+              }
+              return die
+            }
+          )
+        }
+      )
+    }
+  }
+
+  
+  const addPlayer = () => {
+    let newPlayer = {
+      id: nanoid(),
+      name: "Nuevo jugador",
+      score: 0,
+      isTheirTurn: false,
+      isRenaming: false
+    }
+    if(playerList.length === 0){
+      newPlayer = {...newPlayer, isTheirTurn:true}
+    }
+    setPlayerList( prevList => [...prevList, newPlayer])
+  }
+
+  const displayNameInput = (id:string) => {
+    
+    setPlayerList( prevList => prevList.map(player => player.id === id? {...player, isRenaming:true} : player))
+  }
+
+  const renamePlayer = (id:string, newName:string) => {
+    setPlayerList( prevList => prevList.map(player => player.id === id? {...player, name: newName, isRenaming:false} : player))
+  }
+  const removePlayer = (id:string) => {
+    if(!playerList.filter(player => player.id === id)[0].isTheirTurn){
+      setPlayerList(prevList => prevList.filter(player => player.id !== id))
+    }else if(playerList.length > 1){
+      passTurn()
+      setPlayerList(prevList => prevList.filter(player => player.id !== id))
+    }else{
+      setPlayerList(prevList => prevList.filter(player => player.id !== id))
+    }
+  }
+
+  
+
   return (
     <Container>
       <Head>
@@ -17,16 +166,14 @@ export default function Home() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <Main>
-        <Title>
-          Welcome to <a href="https://nextjs.org">Next.js!</a>
-        </Title>
-
-        <Description>
-          Get started by editing
-          <CodeTag>pages/index.tsx</CodeTag>
-        </Description>
-
-        <Cards />
+        <SC.TwoColumns style={{margin:'30px'}}>
+        <Card background='#301100' padding='1em' width='30vw'>
+          <PlayerList playerList={playerList} functions={{removePlayer, addPlayer, displayNameInput, renamePlayer}}/>
+        </Card>
+        <Card background='#301100' padding='1em' width='40vw'>
+          <DiceView dice={dice} functions={{rollDice, holdDice, savePoints, passTurn}} playerList={playerList}/>
+        </Card>
+        </SC.TwoColumns>
       </Main>
     </Container>
   )

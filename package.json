@@ -6,6 +6,8 @@
     "start": "next start"
   },
   "dependencies": {
+    "eslint": "^8.23.1",
+    "nanoid": "^4.0.0",
     "next": "latest",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
